@@ -1,0 +1,30 @@
+{
+	"compilerOptions": {
+		"lib": ["ESNext", "DOM"],
+		"target": "ESNext",
+		"module": "ESNext",
+
+		"strict": true,
+		"allowJs": true,
+		"checkJs": true,
+		"skipLibCheck": true,
+		"noFallthroughCasesInSwitch": true,
+
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noPropertyAccessFromIndexSignature": true,
+
+		// JSR
+		"noImplicitReturns": true,
+
+		// Decorators
+		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
+
+		// // https://github.com/microsoft/TypeScript/issues/14619#issuecomment-1971477006
+		// "removeComments": false,
+		// "declaration": false,
+
+		"outDir": "dist"
+	}
+}
