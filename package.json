@@ -8,7 +8,8 @@
     },
     "scripts": {
         "build": "pnpm --parallel -r build",
-        "lint": "pnpm -r lint"
+        "lint": "pnpm -r lint",
+        "pull": "git submodule update --remote --merge"
     },
     "homepage": "https://githib.com/braebo/bopo",
     "repository": {

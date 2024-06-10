@@ -1,0 +1,3 @@
+[submodule "packages/pocket-shader"]
+	path = packages/pocket-shader
+	url = https://github.com/braebo/pocket-shader
