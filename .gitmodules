@@ -1,3 +1,6 @@
 [submodule "packages/pocket-shader"]
 	path = packages/pocket-shader
 	url = https://github.com/braebo/pocket-shader
+[submodule "packages/threets"]
+	path = packages/threets
+	url = https://github.com/braebo/threets

@@ -2,6 +2,8 @@
 
 Personal notes: internal packges should be scoped and have `private: true`
 
+## Getting Started
+
 1. Update configs
 
     | File                          | Step                                                                       |
@@ -19,3 +21,19 @@ Personal notes: internal packges should be scoped and have `private: true`
 
     Add `NPM_TOKEN` to github action secrets
 
+
+## Git Submodules
+
+All folders in `packages/` are git submodules.
+
+To add a new git submodule, run `git submodule add` from the root of the monorepo:
+
+```bash
+git submodule add https://github.com/USER/REPO packages/REPO
+```
+
+`pnpm pull` will update all submodules to their latest commit by running this command for you:
+
+```bash
+git submodule update --remote --merge
+```
