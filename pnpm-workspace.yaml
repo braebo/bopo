@@ -1,4 +1,5 @@
 packages:
-  - 'packages/*'
+  - 'packages/pocket-shader'
   - 'packages/pocket-shader/www'
+  - 'packages/threets'
   - 'packages/threets/www'
