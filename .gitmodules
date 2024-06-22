@@ -4,3 +4,6 @@
 [submodule "packages/threets"]
 	path = packages/threets
 	url = https://github.com/braebo/threets
+[submodule "apps/working-memory"]
+	path = apps/working-memory
+	url = https://github.com/braebo/working-memory.git

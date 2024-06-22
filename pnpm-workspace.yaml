@@ -3,3 +3,6 @@ packages:
   - 'packages/pocket-shader/www'
   - 'packages/threets'
   - 'packages/threets/www'
+  - 'packages/evm'
+  - 'packages/evm/www'
+  - 'apps/working-memory'
