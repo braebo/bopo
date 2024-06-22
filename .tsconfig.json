@@ -1,8 +1,10 @@
 {
 	"compilerOptions": {
 		"lib": ["ESNext", "DOM"],
+		"types": ["node", "bun"],
 		"target": "ESNext",
 		"module": "ESNext",
+		"moduleResolution": "Bundler",
 
 		"strict": true,
 		"allowJs": true,
@@ -26,5 +28,6 @@
 		// "declaration": false,
 
 		"outDir": "dist"
-	}
+	},
+	"exclude": ["node_modules", "template"]
 }

@@ -9,7 +9,8 @@
     "scripts": {
         "build": "pnpm --parallel -r build",
         "lint": "pnpm -r lint",
-        "pull": "git submodule update --remote --merge"
+        "pull": "git submodule update --remote --merge",
+        "create": "node scripts/create/index.js"
     },
     "homepage": "https://githib.com/braebo/bopo",
     "repository": {
