@@ -1,0 +1,9 @@
+{
+  "$schema": "https://jsr.io/schema/config-file.v1.json",
+  "name": "@braebo/_NAME_",
+  "version": "0.1.0",
+  "exports": "./src/_PATH_.ts",
+  "publish": {
+    "include": ["./src/_PATH_.ts", "README.md", "LICENSE"]
+  }
+}

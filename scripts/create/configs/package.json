@@ -1,0 +1,37 @@
+{
+	"name": "-",
+	"version": "0.1.0",
+	"description": "_DESCRIPTION_",
+	"keywords": [],
+	"license": "MIT",
+	"author": "braebo",
+	"type": "module",
+	"exports": {
+		"./package.json": "./package.json",
+		".": {
+			"types": "./dist/_PATH_.d.ts",
+			"default": "./dist/_PATH_.js"
+		}
+	},
+	"types": "./dist/_PATH_.d.ts",
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
+	"scripts": {
+    "dev": "",
+    "build": "",
+		"lint": "publint"
+	},
+	"devDependencies": {
+		"@changesets/cli": "^2.27.5",
+		"@svitejs/changesets-changelog-github-compact": "^1.1.0",
+		"@types/bun": "^1.1.5",
+		"@types/node": "^20.14.8",
+		"changeset": "^0.2.6",
+		"publint": "^0.2.8",
+		"tsup": "^8.1.0",
+		"typescript": "^5.5.2"
+	}
+}
