@@ -2,10 +2,8 @@
  * @fileoverview WIP package template generator
  */
 
-import { $, type BunFile } from 'bun'
-
 import { intro, outro, cancel, text, multiselect, select, group, spinner } from '@clack/prompts'
-import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
 
 import prettier_raw from './configs/prettier.config.json' with { type: 'text' }
@@ -14,30 +12,23 @@ import tsconfig from './configs/tsconfig.json' with { type: 'text' }
 import jsr_raw from './configs/jsr.json' with { type: 'text' }
 import pkgjson from './configs/package.json'
 
-/**
- * Generates the package into the `tmp` dir instead of the `packages` dir.
- */
-const USE_TMP = true
+type Bundler = 'tsup' | 'tsc'
+type BundlerCfg = Record<Bundler, { default?: boolean; scripts: { dev: string; build: string } }>
 
-// interface Options {
-// 	bundler: 'tsc' | 'tsup'  | 'vite'
-// }
+const dirname = new URL(import.meta.url).pathname
+const here = dirname.replace(`/${basename(dirname)}`, '')
 
-interface PkgScripts {
-	dev: string
-	build: string
-}
-
-const OPS = {
+const CFG = {
+	useTemp: false, // use a temporary folder for testing
+	temp_dir: 'tmp',
+	dest_dir: '../../packages', // used when useTemp is false
+	default_bundler: 'tsup',
 	bundler: {
 		tsup: {
+			default: true,
 			scripts: {
 				dev: 'tsup -d --watch',
 				build: 'tsup',
-			},
-			config: {
-				'tsup.config.js': (entry_filename = 'index') =>
-					tsup_raw.replace(/_PATH_/g, entry_filename),
 			},
 		},
 		tsc: {
@@ -45,34 +36,21 @@ const OPS = {
 				dev: 'tsc -w',
 				build: 'tsc',
 			},
-			config: null,
 		},
-	},
-	'jsr.json': (package_name: string, entry_filename: string) =>
-		(jsr_raw as any as string)
-			.replace(/_NAME_/, package_name)
-			.replaceAll(/_PATH_/g, entry_filename),
+	} as BundlerCfg,
 } as const
 
-const data = {
-	package_name: 'my-package' as string,
-	entrypoint_filename: 'index',
-	bundler: 'tsup' as keyof typeof OPS.bundler,
-	files: new Map<string, string>(),
-} as const
+const tmpFolder = join(here, 'tmp')
+const packagesFolder = join(here, CFG.dest_dir)
 
-data.files.set(
-	'.gitignore',
-	`node_modules
+const files = new Map<string, string>([
+	[
+		'.gitignore',
+		`node_modules
 .DS_Store
 `,
-)
-
-// console.log('here:', here)
-// const templateFolder = findDir('template')
-// const folderContents = readdirSync(templateFolder)
-// const outputFolder = join(here, data.package_name)
-// console.log(`${b('\nfolderContents')}: ${j(folderContents)}\n`)
+	],
+])
 
 //· Main / Prompt ···································································¬
 
@@ -103,6 +81,14 @@ const res = await group(
 				placeholder: 'my-package',
 			})
 		},
+		description: () => {
+			return text({
+				message: 'description ' + em('(optional)') + SEP,
+				placeholder: 'a zero-dependency cure for cancer',
+				defaultValue: 'TODO',
+				initialValue: 'TODO',
+			})
+		},
 		entry: () => {
 			return text({
 				message: 'entry' + SEP,
@@ -114,20 +100,20 @@ const res = await group(
 			return select({
 				message: 'bundler' + SEP,
 				options: [
-					...Object.keys(OPS.bundler).map(k => {
+					...Object.keys(CFG.bundler).map(k => {
 						return {
-							value: k as keyof typeof OPS.bundler,
+							value: k as Bundler,
 							label: k,
-							hint: data.bundler === k ? 'default' : '',
+							hint: k === CFG.default_bundler ? 'default' : '',
 						}
 					}),
 				],
-				initialValue: data.bundler,
+				initialValue: CFG.default_bundler as Bundler,
 			})
 		},
 		addons: () => {
 			return multiselect({
-				message: 'addons \x1b[2m\x1b[3m(spacebar to disable)\x1b[0m',
+				message: 'addons \x1b[2m\x1b[3m(spacebar to disable)\x1b[0m' + SEP,
 				options: [
 					{ value: 'prettier', label: 'prettier' },
 					{ value: 'vitest', label: 'vitest' },
@@ -148,30 +134,31 @@ const res = await group(
 const s = spinner()
 s.start('Generating project...')
 
-data.files.set('tsconfig.json', tsconfig as any as string)
+files.set('tsconfig.json', tsconfig as any as string)
 
 //* Update package.json
 
-const bundler_op = OPS.bundler[res.bundler as keyof typeof OPS.bundler]
+const bundler_op = CFG.bundler[res.bundler as Bundler]
 pkgjson.name = res.name
+pkgjson.description = res.description
 pkgjson.scripts.dev = bundler_op.scripts.dev
 pkgjson.scripts.build = bundler_op.scripts.build
 
 //* Addons
 
 if (res.bundler === 'tsup') {
-	data.files.set(
-		'tsup.config.js',
-		OPS.bundler.tsup.config['tsup.config.js'](data.entrypoint_filename),
-	)
+	files.set('tsup.config.ts', tsup_raw.replace(/_PATH_/g, res.entry))
 }
 
 if (res.addons.includes('prettier')) {
-	data.files.set('.prettierrc', prettier_raw as any as string)
+	files.set('.prettierrc', prettier_raw as any as string)
 }
 
 if (res.addons.includes('jsr')) {
-	data.files.set('jsr.json', OPS['jsr.json'](res.name, data.entrypoint_filename))
+	files.set(
+		'jsr.json',
+		(jsr_raw as any as string).replace(/_NAME_/, res.name).replaceAll(/_PATH_/g, res.entry),
+	)
 }
 
 if (res.addons.includes('vitest')) {
@@ -186,20 +173,19 @@ if (res.addons.includes('vitest')) {
 	if (latest && current !== latest) {
 		s.message(`Upgrading vite version to ${latest}`)
 		// @ts-expect-error
-		pkgjson.devDependencies['vite'] = latest
+		pkgjson.devDependencies['vite'] = `^${latest}`
 	}
 }
 
 //* Now we can create the package.json file.
 
-data.files.set(
-	'package.json',
-	JSON.stringify(pkgjson, null, 2).replaceAll(/_PATH_/g, data.entrypoint_filename),
-)
+files.set('package.json', JSON.stringify(pkgjson, null, 2).replaceAll(/_PATH_/g, res.entry))
 
-const _ = new URL(import.meta.url).pathname
-const here = _.replace(`/${basename(_)}`, '')
-const outputFolder = join(here, USE_TMP ? 'tmp' : '', data.package_name)
+//* Determine the output folder.
+
+const outputFolder = join(CFG.useTemp ? tmpFolder : packagesFolder, res.name)
+
+//* Write the files.
 
 if (existsSync(outputFolder)) {
 	s.message('Removing existing folder...')
@@ -207,18 +193,18 @@ if (existsSync(outputFolder)) {
 }
 
 // recreate it
-mkdirSync(join(outputFolder, data.package_name), { recursive: true })
+mkdirSync(join(outputFolder), { recursive: true })
 
 s.message('Generating files...')
 
-for (const [name, content] of data.files) {
+for (const [name, content] of files) {
 	Bun.write(join(outputFolder, name), content)
 }
 
 mkdirSync(join(outputFolder, 'src'))
 
 Bun.write(
-	join(outputFolder, 'src', `${data.entrypoint_filename}.ts`),
+	join(outputFolder, 'src', `${res.entry}.ts`),
 	`/**
  * @module A blank package template.
  */
@@ -231,36 +217,6 @@ s.stop('Project generated: ' + em(outputFolder))
 outro(`You're all set!`)
 //⌟
 
-//· Utils ···································································¬
-
-function findDir(dir: string, maxDepth = 2) {
-	let found
-
-	function look(depth = 0) {
-		const path = join(here, '../'.repeat(depth), dir)
-		found = existsSync(path)
-		if (found) return path
-		if (depth > maxDepth) {
-			throw new Error(`Failed to find folder: "${dir}".`)
-		}
-		return look(depth + 1)
-	}
-
-	return look()
-}
-
-function file(path: string) {
-	return Bun.file(join(here, path))
-}
-
-function b(str: string) {
-	return `\x1b[34m${str}\x1b[0m`
-}
-function j(obj: {}) {
-	return JSON.stringify(obj, null, 2)
-}
-
 function em(str: string) {
 	return `\x1b[2m\x1b[3m${str}\x1b[0m`
 }
-//⌟
