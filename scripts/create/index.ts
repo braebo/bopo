@@ -192,7 +192,6 @@ if (existsSync(outputFolder)) {
 	rmSync(outputFolder, { recursive: true })
 }
 
-// recreate it
 mkdirSync(join(outputFolder), { recursive: true })
 
 s.message('Generating files...')

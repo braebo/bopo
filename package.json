@@ -1,5 +1,6 @@
 {
     "name": "@braebo/bopo",
+    "description": "braebo's code depot",
     "private": true,
     "license": "MIT",
     "devDependencies": {
