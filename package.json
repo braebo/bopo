@@ -14,7 +14,7 @@
         "build": "pnpm --parallel -r build",
         "lint": "pnpm -r lint",
         "pull": "git submodule update --remote --merge",
-        "create": "cd scripts/create && bun run index.ts"
+        "new": "cd scripts/create && bun run index.ts"
     },
     "homepage": "https://githib.com/braebo/bopo",
     "repository": {

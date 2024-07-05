@@ -2,42 +2,106 @@
  * @fileoverview WIP package template generator
  */
 
-import { intro, outro, cancel, text, multiselect, select, group, spinner } from '@clack/prompts'
-import { existsSync, mkdirSync, rmSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import {
+	multiselect,
+	spinner,
+	confirm,
+	select,
+	cancel,
+	outro,
+	intro,
+	group,
+	text,
+} from '@clack/prompts'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import { execSync } from 'node:child_process'
+import pkgjson from './configs/package.json' with { type: 'json' }
 
-import prettier_raw from './configs/prettier.config.json' with { type: 'text' }
-import tsup_raw from './configs/tsup.config.js' with { type: 'text' }
-import tsconfig from './configs/tsconfig.json' with { type: 'text' }
-import jsr_raw from './configs/jsr.json' with { type: 'text' }
-import pkgjson from './configs/package.json'
+type Bundler = 'tsup' | 'tsc' | 'bun'
+type BundlerCfg = Record<
+	Bundler,
+	{
+		default?: boolean
+		deps: string[]
+		hint: string
+		scripts: {
+			dev: string
+			build: string
+			'build:watch': string
+		}
+	}
+>
 
-type Bundler = 'tsup' | 'tsc'
-type BundlerCfg = Record<Bundler, { default?: boolean; scripts: { dev: string; build: string } }>
+const devDependencies = Object.keys(pkgjson.devDependencies)
 
-const dirname = new URL(import.meta.url).pathname
-const here = dirname.replace(`/${basename(dirname)}`, '')
+const here = `/${new URL(import.meta.url).pathname.split('/').slice(1, -1).join('/')}`
+const args = process?.argv?.slice(2)
+
+const temp = args.includes('--temp') || args.includes('-t')
+const help = args.includes('--help') || args.includes('-h')
+
+if (help) {
+	console.log(`
+\x1b[36m\x1b[2m  b o p o \x1b[0m  c r e a t e
+
+\x1b[2m  NPM \x1b[0m\x1b[2m+\x1b[33m JSR \x1b[0m\x1b[2mpackage template generator
+\x1b[0m
+
+  help
+
+    pnpm create bopo \x1b[2m[options]
+\x1b[0m
+    -t, --temp   \x1b[2mwrite generated files to the temporary testing folder\x1b[0m
+    -h, --help   \x1b[2mthis screen \x1b[0m
+`)
+
+	process?.exit(0)
+	// @ts-expect-error
+	Deno?.exit()
+}
 
 const CFG = {
-	useTemp: false, // use a temporary folder for testing
-	temp_dir: 'tmp',
-	dest_dir: '../../packages', // used when useTemp is false
+	useTemp: temp,
+	temp_dir: 'tmp', // used when useTemp is `false`
+	dest_dir: '../../packages',
 	default_bundler: 'tsup',
+	// todo - {runtime, bundler} ??  willow says yes
+	// runtime: {
+	// 	vite_node: {},
+	// 	bun: {},
+	// 	deno: {},
+	// },
 	bundler: {
 		tsup: {
 			default: true,
 			scripts: {
-				dev: 'tsup -d --watch',
+				dev: 'vite-node --watch src/_PATH_',
 				build: 'tsup',
+				'build:watch': 'tsup --watch',
 			},
+			hint: 'default',
+			deps: ['tsup', 'vite-node'],
+		},
+		bun: {
+			scripts: {
+				dev: 'bun run src/_PATH_ --watch',
+				build: 'bun build src/_PATH_ --out-dir dist',
+				'build:watch': 'bun build src/_PATH_ --out-dir dist -w',
+			},
+			hint: '',
+			deps: process.env.PATH?.includes('bun') ? ['bun', '@types/bun'] : ['@types/bun'],
 		},
 		tsc: {
 			scripts: {
-				dev: 'tsc -w',
+				dev: 'vite-node --watch',
 				build: 'tsc',
+				'build:watch': 'tsc --watch',
 			},
+			hint: 'no bundler',
+			deps: ['vite-node'],
 		},
-	} as BundlerCfg,
+	} satisfies BundlerCfg,
 } as const
 
 const tmpFolder = join(here, 'tmp')
@@ -52,12 +116,25 @@ const files = new Map<string, string>([
 	],
 ])
 
+const folders = new Set<string>()
+
 //· Main / Prompt ···································································¬
 
-intro(`bopo create 📦`)
+const prettier_raw = readFileSync(join(here, 'configs/prettier.config.json'), 'utf-8')
+const workflow_raw = readFileSync(join(here, 'configs/workflow.yml'), 'utf-8')
+const tsup_raw = readFileSync(join(here, 'configs/tsup.config.ts'), 'utf-8')
+const tsconfig = readFileSync(join(here, 'configs/tsconfig.json'), 'utf-8')
+const jsr_raw = readFileSync(join(here, 'configs/jsr.json'), 'utf-8')
 
-/** visual seperator */
-const SEP = '\n\x1b[30m|\x1b[0m'
+/** leading `|` */
+const SEP = '\n\x1b[2m│\x1b[0m'
+
+console.clear()
+
+intro(`
+\x1b[2m│\x1b[0m
+\x1b[2m│\x1b[36m  b o p o \x1b[0m  c r e a t e${temp ? '  \x1b[2m temp\x1b[0m' : ''}
+\x1b[2m│\x1b[0m`)
 
 const res = await group(
 	{
@@ -84,16 +161,16 @@ const res = await group(
 		description: () => {
 			return text({
 				message: 'description ' + em('(optional)') + SEP,
-				placeholder: 'a zero-dependency cure for cancer',
-				defaultValue: 'TODO',
-				initialValue: 'TODO',
+				placeholder: 'the best javascript package ever!',
+				defaultValue: '',
+				initialValue: '',
 			})
 		},
 		entry: () => {
 			return text({
 				message: 'entry' + SEP,
 				defaultValue: 'index',
-				placeholder: 'index',
+				placeholder: 'index.ts',
 			})
 		},
 		bundler: () => {
@@ -104,7 +181,7 @@ const res = await group(
 						return {
 							value: k as Bundler,
 							label: k,
-							hint: k === CFG.default_bundler ? 'default' : '',
+							hint: CFG.bundler[k as Bundler].hint,
 						}
 					}),
 				],
@@ -118,14 +195,27 @@ const res = await group(
 					{ value: 'prettier', label: 'prettier' },
 					{ value: 'vitest', label: 'vitest' },
 					{ value: 'jsr', label: 'jsr' },
+					{
+						value: 'ghWorkflow',
+						label: 'github action',
+						hint: em('Changesets / JSR'),
+					},
 				],
-				initialValues: ['prettier', 'vitest', 'jsr'],
+				initialValues: ['prettier', 'vitest', 'jsr', 'ghWorkflow'],
+			})
+		},
+		install: () => {
+			return confirm({
+				message: 'install dependencies?' + SEP,
+				active: 'yes',
+				inactive: 'no',
+				initialValue: true,
 			})
 		},
 	},
 	{
 		onCancel: () => {
-			cancel('᙮᙮᙮ cancelled')
+			cancel('cancelled')
 			process.exit(0)
 		},
 	},
@@ -138,16 +228,24 @@ files.set('tsconfig.json', tsconfig as any as string)
 
 //* Update package.json
 
-const bundler_op = CFG.bundler[res.bundler as Bundler]
-pkgjson.name = res.name
+const bundler_cfg = CFG.bundler[res.bundler as Bundler]
+pkgjson.name = `${res.scope}/${res.name}`
 pkgjson.description = res.description
-pkgjson.scripts.dev = bundler_op.scripts.dev
-pkgjson.scripts.build = bundler_op.scripts.build
+
+pkgjson.scripts.dev = bundler_cfg.scripts.dev.replace(/_PATH_/, res.entry)
+pkgjson.scripts.build = bundler_cfg.scripts.build.replace(/_PATH_/, res.entry)
+pkgjson.scripts['build:watch'] = bundler_cfg.scripts['build:watch'].replace(/_PATH_/, res.entry)
+
+devDependencies.push(...bundler_cfg.deps)
 
 //* Addons
-
-if (res.bundler === 'tsup') {
-	files.set('tsup.config.ts', tsup_raw.replace(/_PATH_/g, res.entry))
+s.message('adding bundler')
+switch (res.bundler) {
+	case 'tsup': {
+		files.set('tsup.config.ts', tsup_raw.replace(/_PATH_/g, res.entry))
+		break
+	}
+	// todo - bun/deno init stuff
 }
 
 if (res.addons.includes('prettier')) {
@@ -162,23 +260,20 @@ if (res.addons.includes('jsr')) {
 }
 
 if (res.addons.includes('vitest')) {
-	// @ts-expect-error
-	const current = pkgjson.devDependencies['vite']
-	let latest = ''
-	try {
-		const { version } = await (await fetch('https://registry.npmjs.org/vite/latest')).json()
-		latest = version
-	} catch (e) {}
+	devDependencies.push('vitest')
+}
 
-	if (latest && current !== latest) {
-		s.message(`Upgrading vite version to ${latest}`)
-		// @ts-expect-error
-		pkgjson.devDependencies['vite'] = `^${latest}`
-	}
+if (res.addons.includes('ghWorkflow')) {
+	folders.add('.github/workflows')
+	files.set('.github/workflows/release.yml', workflow_raw)
 }
 
 //* Now we can create the package.json file.
+s.message('resolving latest dependency versions')
+const deps = await resolveDeps(devDependencies)
+Object.assign(pkgjson.devDependencies, deps)
 
+s.message('writing package.json')
 files.set('package.json', JSON.stringify(pkgjson, null, 2).replaceAll(/_PATH_/g, res.entry))
 
 //* Determine the output folder.
@@ -188,33 +283,75 @@ const outputFolder = join(CFG.useTemp ? tmpFolder : packagesFolder, res.name)
 //* Write the files.
 
 if (existsSync(outputFolder)) {
-	s.message('Removing existing folder...')
 	rmSync(outputFolder, { recursive: true })
 }
-
 mkdirSync(join(outputFolder), { recursive: true })
 
-s.message('Generating files...')
+if (folders.size) {
+	for (const folder of folders) {
+		mkdirSync(join(outputFolder, folder), { recursive: true })
+	}
+}
+
+s.message('Generating files')
 
 for (const [name, content] of files) {
-	Bun.write(join(outputFolder, name), content)
+	const filepath = join(outputFolder, name)
+	try {
+		writeFileSync(join(outputFolder, name), content, {
+			encoding: 'utf-8',
+		})
+	} catch (e) {
+		console.log('\n\n\x1b[31mError writing file\x1b[0m', filepath, '\n')
+		console.error(e)
+		s.stop('Error')
+	}
 }
 
 mkdirSync(join(outputFolder, 'src'))
 
-Bun.write(
+writeFileSync(
 	join(outputFolder, 'src', `${res.entry}.ts`),
 	`/**
- * @module A blank package template.
+ * @module ${res.description ?? 'A blank package template.'}
  */
 
-export const foo = 'bar'`,
+export const foo = (msg: string) => console.log(msg)
+
+foo('hello world')
+`,
 )
 
-s.stop('Project generated: ' + em(outputFolder))
+if (res.install) {
+	s.message('Installing dependencies')
+	try {
+		execSync(`cd ${resolve(here, outputFolder)} && pnpm update --latest`, { stdio: 'inherit' })
+	} catch (e) {
+		console.error(e)
+		s.stop('❌ \x1b[31mError\x1b[0m')
+		process.exit(1)
+	}
+}
 
-outro(`You're all set!`)
+s.stop(`\x1b[32m✔️\x1b[0m  ${em(outputFolder)}`)
+outro(`b o p o   \x1b[32mc r e a t e d\x1b[0m`)
+process.exit(0)
 //⌟
+
+async function resolveDeps(arr: string[]): Promise<Record<string, string>> {
+	const res = await fetch(`https://npm.antfu.dev/${arr.join('+')}`)
+	let data = (await res.json()) as { version: string; name: string }[]
+
+	if (!Array.isArray(data)) data = [data]
+
+	return data.reduce(
+		(acc, { name, version }) => {
+			acc[name] = version
+			return acc
+		},
+		{} as Record<string, string>,
+	)
+}
 
 function em(str: string) {
 	return `\x1b[2m\x1b[3m${str}\x1b[0m`
